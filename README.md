@@ -1,21 +1,7 @@
 creep-web-app-scanner
 =====================
 
-A (very) primitive website scanner currently under development by an NCC Group employee and University graduate with 20% research time. creep currently crawls a site, and searches for potentially interesting information within each page. creep uses the following output procedure:
-
-for i in site.page:
-   if i.crawled == 1 and i.status_code != 404:
-      print i.url
-      print i.crawled
-      print i.status_code
-      print 'paths ' + str(i.findings['paths'])
-      print 'source_code ' + str(i.findings['source_code'])
-      print 'comments ' + str(i.findings['comments'])
-      print 'warns ' + str(i.findings['errors']['warns'])
-      print 'fatals ' + str(i.findings['errors']['fatals'])
-      print 'errors ' + str(i.findings['errors']['errors'])
-      print 'get ' + str(i.findings['parameters']['get'])
-      print 'post ' + str(i.findings['parameters']['post'])
+A (very) primitive website scanner currently under development by an NCC Group employee and University graduate with 20% research time. creep currently crawls a site, and searches for potentially interesting information within each page.
 
 creep will crawl your (HTTP only) target and pull interesting info on the site, including:
 
