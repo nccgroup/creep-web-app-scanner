@@ -205,6 +205,10 @@ def crawl(site,page,depth=5):
             if matchDictionary(comment,page.findings['comments']) == False:
                page.findings['comments'].append(comment)
 
+         for tag_code in php_source:
+            if matchDictionary(comment,page.findings['tag_code']) == False:
+               page.findings['tag_code'].append(tag_code)
+
          links = soup('a')
          for link in links:
             processLink('href',site,page,link)

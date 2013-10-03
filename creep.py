@@ -51,14 +51,16 @@ site = start()
 
 for i in site.page:
    if i.crawled == 1 and i.status_code != 404:
-      print i.url
-      print i.crawled
-      print i.status_code
-      print 'paths ' + str(i.findings['paths'])
-      print 'source_code ' + str(i.findings['source_code'])
-      print 'comments ' + str(i.findings['comments'])
-      print 'warns ' + str(i.findings['errors']['warns'])
-      print 'fatals ' + str(i.findings['errors']['fatals'])
-      print 'errors ' + str(i.findings['errors']['errors'])
-      print 'get ' + str(i.findings['parameters']['get'])
-      print 'post ' + str(i.findings['parameters']['post'])
+      print 'url         ' + i.url
+      print 'crawled?    ' + str(i.crawled)
+      print 'status_code ' + str(i.status_code)
+      print 'paths       ' + str(i.findings['paths'])
+      print 'source_code ' + 'omitted' #str(i.findings['source_code'])
+      print 'comments    ' + str(i.findings['comments'])
+      print 'warns       ' + str(i.findings['errors']['warns'])
+      print 'fatals      ' + str(i.findings['errors']['fatals'])
+      print 'errors      ' + str(i.findings['errors']['errors'])
+      print 'tag_code    ' + str(i.findings['tag_code'])
+      print 'get         ' + str(i.findings['parameters']['get'])
+      print 'post        ' + str(i.findings['parameters']['post'])
+      print '# '*10

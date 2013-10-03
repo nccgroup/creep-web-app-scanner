@@ -18,6 +18,7 @@ Other things and features to be added to creep include:
 * Unit testing
 * Search engine, site specific search (Google's site: inurl: etc..)
 * Form processing. Pulling action resources and (possibly) brute forcing
+* Potentially interesting parameters (file, debug, open, etc..)
 * Equivalent status code definitions. Some websites return 200 regardless of whether the requested resource is actually available/exists
 * Concurrent network IO
 * Loading/saving data to SQL db (SQLite)
