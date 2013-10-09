@@ -10,27 +10,26 @@ import tornado
 
 class Page():
    crawled = 0
+   source = ''
 
 class Site():
    page = {}
    pagesCrawled = 0
    target = ''
 
-def urlIncludesTarget(url, target):
-   m = re.match(target, url)
+def urlNotCrawled(site, url):
+   # Ensure URL has not already been crawled
+   if url not in dict(site.page):
+      return True
+   return False
+
+def urlWithinTargetScope(url, site):
+   # Ensure URL starts with target to prevent crawl creep
+   m = re.match(site.target, url)
    return m != None
 
 def crawl(site, url):
-   # Ensure URL starts with target to prevent crawl creep
-   if urlIncludesTarget(url, site.target) != True:
-      return False
-
-   # Ensure URL has not already been crawled
-   if url not in dict(site.page):
-      site.pagesCrawled += 1
-      site.page[url] = Page()
-      site.page[url].crawled = 1
-
-
-
+   site.pagesCrawled += 1
+   site.page[url] = Page()
+   site.page[url].crawled = 1
    return True
