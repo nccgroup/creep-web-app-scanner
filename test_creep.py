@@ -1,91 +1,67 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3.3
 
 # Released as open source by NCC Group Plc - http://www.nccgroup.com/
 # Developed by Aidan Marlin, aidan dot marlin at nccgroup dot com
 # https://github.com/nccgroup/creep-web-app-scanner
 # Released under AGPL. See LICENSE for more information
 
-import optparse
-from bs4 import BeautifulSoup, Comment
-from datetime import datetime
-import random
-import urllib
-import urlparse
-import re
 from lib import creep
 import unittest
 
-# usage():
-# checkUsage():
-# writeFile(fileName, content, interfaceType='w'):
-# matchDictionary(search,dictionary):
-# urlList(site):
-# addSpeculativeURLs(speculativeURLs, pages):
-# crawl(crawlTarget,page,depth=5):
-# initialCrawl():
-# speculativeURLs():
-
-class TestCreepFunctions(unittest.TestCase):
+class TestCreep(unittest.TestCase):
    def setUp(self):
-      # test_writeFile
-      creep.filename = ['/tmp/py_test', '/tmp/py_test1']
-      creep.content = 'aaa'
-      creep.f = [0,0]
-      creep.output = [0,0]
+      self.site = creep.Site()
+      self.url = 'http://test.com/aa'
+      self.site.target = 'http://test.com/'
 
-      # test_matchDictionary
-      creep.searchString = 'test'
-      creep.dictionary = ['test','what']
+   # creep.urlIncludesTarget() tests
+   def testUrlIncludesTarget(self):
+      self.assertTrue(creep.urlIncludesTarget(self.url, self.site.target))
 
-   def test_writeFile(self):
-      # Write using function
-      creep.writeFile(creep.filename[0],creep.content)
+   def testUrlDoesNotIncludeTarget(self):
+      self.url = 'Ahttp://test.com/'
+      self.target = 'http://test.com/'
+      self.assertFalse(creep.urlIncludesTarget(self.url, self.site.target))
 
-      # Write using Python functions
-      creep.f[0] = open(creep.filename[1],'w')
-      creep.f[0].write(creep.content)
-      creep.f[0].close()
+   # creep.crawl() tests
+   def testCrawlDoesSetCrawled(self):
+      creep.crawl(self.site, self.url)
+      self.assertTrue(self.site.page[self.url].crawled == 1)
 
-      # Open both files
-      creep.f[0] = open(creep.filename[0],'r')
-      creep.output[0] = creep.f[0].read()
-      creep.f[0].close()
+   def testCrawlDoesNotCrawlSameUrlTwice(self):
+      creep.crawl(self.site, self.url)
+      creep.crawl(self.site, self.url)
+      self.assertTrue(self.site.pagesCrawled == 1)
 
-      creep.f[1] = open(creep.filename[0],'r')
-      creep.output[1] = creep.f[1].read()
-      creep.f[1].close()
+   def testCrawlDoesCrawlDifferentUrls(self):
+      self.url = 'http://test.com/'
+      creep.crawl(self.site, self.url)
+      self.url = 'http://test.com/a'
+      creep.crawl(self.site, self.url)
+      self.assertTrue(self.site.pagesCrawled == 2)
 
-      self.assertEqual(creep.output[0], creep.output[1])
+   def testCrawlDoesIncrementCrawlCounter(self):
+      self.url = 'http://test.com/1'
+      creep.crawl(self.site, self.url)
+      self.url = 'http://test.com/2'
+      creep.crawl(self.site, self.url)
+      self.url = 'http://test.com/3'
+      creep.crawl(self.site, self.url)
+      self.url = 'http://test.com/4'
+      creep.crawl(self.site, self.url)
+      self.url = 'http://test.com/5'
+      creep.crawl(self.site, self.url)
+      self.url = 'http://test.com/6'
+      creep.crawl(self.site, self.url)
+      self.assertTrue(self.site.pagesCrawled == 6)
 
-   def test_matchDictionary(self):
-      self.assertTrue(creep.matchDictionary('test', creep.dictionary))
+   def testCrawlRejectsUrlNotContainingTarget(self):
+      self.url = 'http://test1.com/'
+      self.assertFalse(creep.crawl(self.site, self.url))
+      self.assertTrue(self.site.pagesCrawled == 0)
 
-   def test_speculativeURLs(self):
-      self.speculativeURLs = 1
-
-   def test_addSpeculativeURLs(self):
-      # Lots of vars
-      site = creep.Site()
-      site.site_url = 'http://test.com'
-      site.page.append(creep.Page(site.site_url))
-      site.page.append(creep.Page(site.site_url))
-      site.page[0].url = site.site_url + '/'
-      site.page[1].url = site.site_url + '/robots.txt'
-
-      speculativeURLs = creep.Site()
-
-      creep.addSpeculativeURLs(creep.speculativeURLs, creep.page)
-      self.test = 1
-
-      #for i in pages:
-         #for k in speculativeURLs:
-      self.assertTrue(1, 1)
-
-   #def test_urlList(self):
-   #   with self.assertRaises(ValueError):
-   #      random.sample(self.seq, 20)
-   #   for element in random.sample(self.seq, 5):
-   #      self.assertTrue(element in self.seq)
+def main():
+   unittest.main()
 
 if __name__ == '__main__':
-   unittest.main()
+   main()
