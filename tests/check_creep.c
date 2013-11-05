@@ -17,14 +17,37 @@
  */
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <check.h>
 #include "../src/creep.h"
+#include "../src/def_error_messages.h"
 
 START_TEST(test_creep_exit_error)
 {
    int errorNum = 1;
 
    ck_assert(exit_error(errorNum) == errorNum);
+   ck_assert(exit_error(256) == 255);
+   ck_assert(exit_error(-1) == 255);
+}
+END_TEST
+
+START_TEST(test_creep_exit_message)
+{
+   int errorNum = 1;
+   char tmpErrorStr[128];
+
+   //char errorStr[255][64];
+   char **errorStr = malloc(sizeof(char) * 128);
+
+   ck_assert(setup_error_messages(errorStr) == 0);
+
+   strcpy(tmpErrorStr,DEF_ERROR_1);
+   ck_assert(strcmp(exit_message(errorNum,errorStr),tmpErrorStr) == 0);
+
+/*   errorNum = 2;
+   strcpy(errorStr,DEF_ERROR_2);
+   ck_assert(strcmp(exit_message(errorNum),errorStr) == 0);*/
 }
 END_TEST
 
@@ -35,6 +58,7 @@ Suite * creep_suite(void)
    /* Core test case */
    TCase *tc_core = tcase_create ("Core");
    tcase_add_test (tc_core, test_creep_exit_error);
+   tcase_add_test (tc_core, test_creep_exit_message);
    suite_add_tcase (s, tc_core);
 
    return s;

@@ -3,4 +3,8 @@
 
 #endif /* MONEY_H */
 
-int exit_error(int errorNum);
+#include <stdint.h>
+
+int setup_error_messages(char **errorStr);
+char *exit_message(int errorNum, char **errorStr);
+uint8_t exit_error(int errorNum);
