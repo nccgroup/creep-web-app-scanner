@@ -7,39 +7,107 @@
 
 from lib import creep
 import unittest
+import tornado
+import tornado.testing
+import tornado.gen
+import tornado.ioloop
+import tornado.httpclient
 
 class TestCreep(unittest.TestCase):
    def setUp(self):
       self.site = creep.Site()
-      self.site.target = 'http://test.com/'
-      self.url = 'http://test.com/'
-      self.site.page[self.url] = creep.Page
+      self.site.target = 'http://pastefu.org/'
+      self.url = 'http://pastefu.org/'
+      self.site.page[0].url = 'http://pastefu.org/'
 
-# urlNotCrawled(site, url):
+# urlCrawled(site, url):
 # urlWithinTargetScope(url, site):
 # crawl(site, url):
 
    ###
-   # urlNotCrawled() tests
-   def testUrlNotCrawledReturnsTrue(self):
-      self.url = 'http://test1.com/'
-      self.assertTrue(creep.urlNotCrawled(self.site, self.url))
+   # urlCrawled() tests
+   def testUrlCrawledReturnsTrue(self):
+      self.site.page[len(self.site.page)-1].url = 'http://pastefu.org/cock'
+      self.site.page[len(self.site.page)-1].crawled = True
+      self.url = 'http://pastefu.org/cock'
+      self.assertTrue(creep.urlCrawled(self.site, self.url))
 
-   def testUrlNotCrawledReturnsFalse(self):
-      self.url = 'http://test.com/'
-      self.assertFalse(creep.urlNotCrawled(self.site, self.url))
+   def testUrlCrawledReturnsFalse(self):
+      self.site.page[len(self.site.page)-1].url = 'http://pastefu.org/cock'
+      self.site.page[len(self.site.page)-1].crawled = False
+      self.url = 'http://pastefu.org/cock'
+      self.assertFalse(creep.urlCrawled(self.site, self.url))
 
    ###
    # urlWithinTargetScope() tests
    def testUrlWithinTargetScopeReturnsTrue(self):
-      self.site.target = 'http://test.com/'
-      self.url = 'http://test.com/'
+      self.site.target = 'http://pastefu.org/'
+      self.url = 'http://pastefu.org/'
       self.assertTrue(creep.urlWithinTargetScope(self.url, self.site))
 
    def testUrlWithinTargetScopeReturnsFalse(self):
-      self.site.target = 'http://test.com/'
+      self.site.target = 'http://pastefu.org/'
       self.url = 'http://test1.com/'
       self.assertFalse(creep.urlWithinTargetScope(self.url, self.site))
+
+   def testAppendURLToSite(self):
+      inc = 0
+
+      self.testURLS = [ 'http://pastefu.org/a', 'http://pastefu.org/b', 'http://pastefu.org/c', 'http://pastefu.org/d' ]
+      for self.url in self.testURLS:
+         creep.Site.appendURLToSite(self.site, self.url)
+
+      for item in self.site.page:
+         inc += 1
+
+      print("inc == " + str(inc) + "\nlen(self.self.site.page) == " + str(len(self.site.page)))
+      print("testAppendURLToSite == " + self.site.page[1].url)
+      self.assertTrue(len(self.site.page) == inc)
+
+###
+# Test crawl
+class TestCrawl(unittest.TestCase):
+   def setUp(self):
+      self.site = creep.Site
+      self.site.target = 'http://pastefu.org/'
+      self.url = 'http://pastefu.org/'
+
+      self.site.page.append(creep.Page)
+      self.site.page[0].url = 'http://pastefu.org/'
+
+   def testCrawlGet(self):
+      inc = 0
+
+      self.testURLS = [ 'http://pastefu.org/a', 'http://pastefu.org/b', 'http://pastefu.org/c', 'http://pastefu.org/d' ]
+      for self.url in self.testURLS:
+         creep.Site.appendURLToSite(self.site, self.url)
+
+      creep.Crawl.get(self.site)
+      for fucksake in self.site.page:
+         print("FUCK SAKE == " + str(fucksake.response))
+
+      for item in self.site.page:
+         if item.crawled == True:
+            inc += 1
+
+      print("inc == " + str(inc) + "\nlen(self.self.site.page) == " + str(len(self.site.page)))
+      #self.assertTrue(len(self.site.page) == inc)
+
+#   @tornado.testing.gen_test
+#   def test_http_fetch(self):
+#      client = tornado.testing.AsyncHTTPClient(self.io_loop)
+#      client.fetch("http://www.pastefu.org/", self.handle_fetch)
+#      self.wait()
+
+#   def handle_fetch(self, response):
+#      # Test contents of response (failures and exceptions here
+#      # will cause self.wait() to throw an exception and end the
+#      # test).
+#      # Exceptions thrown here are magically propagated to
+#      # self.wait() in test_http_fetch() via stack_context.
+#      print(response.body)
+#      self.assertIn("It works!", str(response.body))
+#      self.stop()
 
 #   # creep.crawl() tests
 #   def testCrawlReturnsTrue(self):
@@ -51,24 +119,24 @@ class TestCreep(unittest.TestCase):
 #      self.assertTrue(self.site.pagesCrawled == 1)
 #
 #   def testCrawlDoesCrawlDifferentUrls(self):
-#      self.url = 'http://test.com/'
+#      self.url = 'http://pastefu.org/'
 #      creep.crawl(self.site, self.url)
-#      self.url = 'http://test.com/a'
+#      self.url = 'http://pastefu.org/a'
 #      creep.crawl(self.site, self.url)
 #      self.assertTrue(self.site.pagesCrawled == 2)
 #
 #   def testCrawlDoesIncrementCrawlCounter(self):
-#      self.url = 'http://test.com/1'
+#      self.url = 'http://pastefu.org/1'
 #      creep.crawl(self.site, self.url)
-#      self.url = 'http://test.com/2'
+#      self.url = 'http://pastefu.org/2'
 #      creep.crawl(self.site, self.url)
-#      self.url = 'http://test.com/3'
+#      self.url = 'http://pastefu.org/3'
 #      creep.crawl(self.site, self.url)
-#      self.url = 'http://test.com/4'
+#      self.url = 'http://pastefu.org/4'
 #      creep.crawl(self.site, self.url)
-#      self.url = 'http://test.com/5'
+#      self.url = 'http://pastefu.org/5'
 #      creep.crawl(self.site, self.url)
-#      self.url = 'http://test.com/6'
+#      self.url = 'http://pastefu.org/6'
 #      creep.crawl(self.site, self.url)
 #      self.assertTrue(self.site.pagesCrawled == 6)
 #
