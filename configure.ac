@@ -2,7 +2,7 @@
 
 # Prelude.
 AC_PREREQ([2.59])
-AC_INIT([Creep], [0.3], [check-devel AT lists.sourceforge.net])
+AC_INIT([Creep], [0.3], [aidan.marlin AT gmail.com])
 
 # unique source file --- primitive safety check 
 AC_CONFIG_SRCDIR([src/creep.c])
@@ -29,6 +29,8 @@ AC_CONFIG_MACRO_DIR([m4])
 #  AM_PATH_CHECK([MINIMUM-VERSION,
 #                [ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]]])
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
+
+PKG_CHECK_MODULES([LIBEVENT], [libevent])
 
 # Checks for header files.
 AC_HEADER_STDC

@@ -1,5 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 
+AM_LDFLAGS = -levent
+
 TESTS = check_creep
 check_PROGRAMS = check_creep
 check_creep_SOURCES = check_creep.c ../src/creep.h ../src/creep.c
