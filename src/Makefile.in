@@ -79,7 +79,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = main$(EXEEXT)
+bin_PROGRAMS = creep$(EXEEXT)
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/build-aux/depcomp
@@ -131,9 +131,9 @@ am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
 PROGRAMS = $(bin_PROGRAMS)
-am_main_OBJECTS = main.$(OBJEXT)
-main_OBJECTS = $(am_main_OBJECTS)
-main_DEPENDENCIES = libcreep.la
+am_creep_OBJECTS = creep_main.$(OBJEXT)
+creep_OBJECTS = $(am_creep_OBJECTS)
+creep_DEPENDENCIES = libcreep.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -168,8 +168,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libcreep_la_SOURCES) $(main_SOURCES)
-DIST_SOURCES = $(libcreep_la_SOURCES) $(main_SOURCES)
+SOURCES = $(libcreep_la_SOURCES) $(creep_SOURCES)
+DIST_SOURCES = $(libcreep_la_SOURCES) $(creep_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -319,8 +319,8 @@ top_srcdir = @top_srcdir@
 AM_LDFLAGS = -levent
 lib_LTLIBRARIES = libcreep.la
 libcreep_la_SOURCES = creep.c creep.h
-main_SOURCES = main.c
-main_LDADD = libcreep.la
+creep_SOURCES = creep_main.c
+creep_LDADD = libcreep.la
 all: all-am
 
 .SUFFIXES:
@@ -443,9 +443,9 @@ clean-binPROGRAMS:
 	echo " rm -f" $$list; \
 	rm -f $$list
 
-main$(EXEEXT): $(main_OBJECTS) $(main_DEPENDENCIES) $(EXTRA_main_DEPENDENCIES) 
-	@rm -f main$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(main_OBJECTS) $(main_LDADD) $(LIBS)
+creep$(EXEEXT): $(creep_OBJECTS) $(creep_DEPENDENCIES) $(EXTRA_creep_DEPENDENCIES) 
+	@rm -f creep$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(creep_OBJECTS) $(creep_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -454,7 +454,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/creep.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/creep_main.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\

@@ -8,32 +8,38 @@
 #include <evhttp.h>
 #include "../src/def_sizes.h"
 
+typedef struct Error Error;
+typedef struct Findings Findings;
+typedef struct Parameters Parameters;
+typedef struct Page Page;
+typedef struct Target Target;
+
 // Application error
-typedef struct {
+struct Error {
    int number;
    char message[DEF_SIZE_ERROR_MESSAGE_LENGTH];
    uint8_t log;
-} Error;
+};
 
 // Page findings
-typedef struct {
+struct Findings {
    char *comments[DEF_SIZE_FINDING_ARRAY_SIZE];
    char *warns[DEF_SIZE_FINDING_ARRAY_SIZE];
    char *fatals[DEF_SIZE_FINDING_ARRAY_SIZE];
    char *errors[DEF_SIZE_FINDING_ARRAY_SIZE];
    char *tag_code[DEF_SIZE_FINDING_ARRAY_SIZE];
-} Findings;
+};
 
 // Page parameters
-typedef struct {
+struct Parameters {
    char *get;
    char *post;
    // 64KB
    char *cookies;
-} Parameters;
+};
 
 // Main page structure
-typedef struct {
+struct Page {
    uint8_t crawled;
    int status_code;
    // TODO Check NULL byte issue str* functions should be DEF - 1?
@@ -42,7 +48,14 @@ typedef struct {
    Findings findings;
    struct Page *prev_node;
    struct Page *next_node;
-} Page;
+};
+
+struct Target {
+   char ip[16]; //v4 only, get over it
+   char domain[DEF_SIZE_DOMAIN];
+   struct Page *current_node;
+   struct Page *first_node;
+};
 
 // Error functions
 int setup_error_messages(Error *error);
@@ -50,8 +63,8 @@ uint8_t exit_error(Error error);
 
 // Page functions
 int setup_error_messages(Error *error);
-int addPage(Page page, char *URL);
-int searchPageForURLs(Page page);
-int populatePage(Page page);
-void reqhandler(struct evhttp_request *req, Page page);
-int crawl(Page *page); // Parameters struct at some point?
+int addPage(Target *target, char *URL);
+int searchPageForURLs(Target *target);
+int populatePage(Target *target);
+void reqhandler(struct evhttp_request *req, Target *target);
+int crawl(Target *target); // Parameters struct at some point?

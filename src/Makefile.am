@@ -5,6 +5,6 @@ AM_LDFLAGS = -levent
 lib_LTLIBRARIES = libcreep.la
 libcreep_la_SOURCES = creep.c creep.h
 
-bin_PROGRAMS = main
-main_SOURCES = main.c
-main_LDADD = libcreep.la
+bin_PROGRAMS = creep
+creep_SOURCES = creep_main.c
+creep_LDADD = libcreep.la
