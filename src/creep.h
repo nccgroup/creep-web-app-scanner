@@ -65,6 +65,7 @@ uint8_t exit_error(Error error);
 int setup_error_messages(Error *error);
 int addPage(Target *target, char *URL);
 int searchPageForURLs(Target *target);
-int populatePage(Target *target);
-void reqhandler(struct evhttp_request *req, Target *target);
+int populatePage(struct evhttp_request *req, Target *target);
+//void reqhandler(struct evhttp_request *req, Target *target);
+void reqhandler(struct evhttp_request *req, void *target);
 int crawl(Target *target); // Parameters struct at some point?

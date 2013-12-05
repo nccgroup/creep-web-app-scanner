@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
-AM_LDFLAGS = -levent
+AM_LDFLAGS = -levent -Wall
 
 lib_LTLIBRARIES = libcreep.la
 libcreep_la_SOURCES = creep.c creep.h

@@ -102,33 +102,53 @@ int searchPageForURLs(Target *target)
 }
 
 /* Interface for req to page struct */
-int populatePage(Target *target)
+int populatePage(struct evhttp_request *req, Target *target)
 {
-   /*printf("in reqhandler. state == %s\n", (char *) state);
+   size_t datalen = DEF_SIZE_SOURCE_CODE; /* Max source code size */
+   target->current_node->source_code = malloc(DEF_SIZE_SOURCE_CODE); /* TODO check */
+   char *line = malloc(DEF_SIZE_SOURCE_CODE_LINE); /* TODO check */
+
+   printf("in reqhandler. state == %s\n", (char *) target);
    if (req == NULL) {
-       printf("timed out!\n");
+      printf("timed out!\n");
    } else if (req->response_code == 0) {
-       printf("connection refused!\n");
+      printf("connection refused!\n");
    } else if (req->response_code != 200) {
-       printf("error: %u %s\n", req->response_code, req->response_code_line);
+      printf("error: %u %s\n", req->response_code, req->response_code_line);
    } else {
-       printf("success: %u %s\n", req->response_code, req->response_code_line);
-   }*/
+      evbuffer_copyout(req->input_buffer, target->current_node->source_code, datalen);
+      //while ((line = evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)))
+      //{
+         //evbuffer_add(target->current_node->source_code, line, datalen);
+         //evbuffer_add(target->current_node->source_code, "\n", 1);
+         //free(line);
+      //}
+
+      //printf("success: %u %s\n", req->response_code, req->response_code_line);
+      //printf("source? %s\n", evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)); 
+      //printf("source? %s\n", evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)); 
+      //printf("source? %s\n", evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)); 
+      printf("source? %s\n", target->current_node->source_code);
+   }
 }
 
-void reqhandler(struct evhttp_request *req, Target *target)
+//void reqhandler(struct evhttp_request *req, Target *target)
+void reqhandler(struct evhttp_request *req, void *vTarget)
 {
    /*
       - Crawl and find more pages, need to add pages
       - Check all pages have been crawled, search pages?
    */
 
+   /* Typecast */
+   Target *target = (Target *) vTarget;
+
    /*
     *
     * POPULATE PAGE STRUCT
     *
     */
-   populatePage(target);
+   populatePage(req,target);
    
    /*
     *
@@ -151,12 +171,14 @@ int crawl(Target *target) /* Parameters struct at some point? */
    printf("target->ip = %s\n", target->ip);
    printf("target->domain = %s\n", target->domain);
    printf("target->current_node->url = %s\n", target->current_node->url);
+   printf("crawl while loop target->current_node->next_node == %x\n", target->current_node->next_node);
 
    const char *addr = target->ip;
    unsigned int port = 80;
    int i = 0, allPagesCrawled = 0;
    struct evhttp_connection *conn;
    struct evhttp_request *req, *req2;
+   Page *target_next_node;
 
    printf("initializing libevent subsystem..\n");
    event_init();
@@ -174,12 +196,14 @@ int crawl(Target *target) /* Parameters struct at some point? */
    do {
       //pagePtr = page[i];
       // reqhandler will popluate pages
+      /* Need this because last element will not be crawled otherwise.. */
+      target_next_node = target->current_node->next_node;
       req = evhttp_request_new(reqhandler, target);
       evhttp_add_header(req->output_headers, "Host", target->domain);
       evhttp_add_header(req->output_headers, "Content-Length", "0");
       evhttp_make_request(conn, req, EVHTTP_REQ_GET, target->current_node->url);
       event_dispatch();
-   } while(target->current_node->next_node != NULL);
+   } while(target_next_node != NULL);
 
    printf("starting event loop..\n");
 
@@ -197,6 +221,7 @@ int crawl(Target *target) /* Parameters struct at some point? */
 
 int bootPages(Target *target)
 {
+   int i = 0; // TMP
    Page *prev_node_tmp;
 
    //printf("argDomain in bootPages == %s\n",argDomain);
@@ -209,7 +234,7 @@ int bootPages(Target *target)
    /* First item in the list */
    target->current_node->prev_node = NULL;
    /* Last item in the list */
-   target->current_node->next_node = malloc(sizeof(Page));
+   target->current_node->next_node = malloc(sizeof(Page)); /* TODO check */
    /* Store current node position */
    prev_node_tmp = target->current_node;
    /* Move on to next node */
@@ -224,6 +249,7 @@ int bootPages(Target *target)
 
    /* Move back to the beginning */
    target->current_node = target->current_node->prev_node;
+   printf("bootPages target->current_node->next_node == %x\n", target->current_node->next_node);
 
 /*   // Main page structure
    typedef struct {
