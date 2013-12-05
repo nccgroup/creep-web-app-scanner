@@ -4,6 +4,7 @@
 #endif /* CREEP_H */
 
 #include <arpa/inet.h>
+#include <assert.h>
 #include <errno.h>
 #include <event.h>
 #include <evhttp.h>
@@ -14,6 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+
+#include "/usr/local/include/gumbo.h"
 
 #include "../src/creep.h"
 #include "../src/def_error_messages.h"
@@ -88,17 +91,42 @@ uint8_t exit_error(Error error)
  *
  */
 
-int addPage(Target *target, char *URL)
+const char *findURLs(Target *target, GumboNode *root)
 {
-   /* TODO Add page to page array. Page arg is wrong.. */
+   int i;
+   if (root->type != GUMBO_NODE_ELEMENT) {
+      return;
+   }
+
+   GumboAttribute* href;
+   if (root->v.element.tag == GUMBO_TAG_A &&
+      (href = gumbo_get_attribute(&root->v.element.attributes, "href"))) {
+      printf("a href == %s\n", href->value);
+   }
+
+   if (root->v.element.tag == GUMBO_TAG_SCRIPT &&
+      (href = gumbo_get_attribute(&root->v.element.attributes, "src"))) {
+      printf("script src == %s\n", href->value);
+   }
+
+   GumboVector* children = &root->v.element.children;
+   for (0; i < children->length; ++i) {
+      findURLs(target, children->data[i]);
+   }
 }
 
 int searchPageForURLs(Target *target)
 {
-   /* TOOD Library which can search source for URLs.. */
-   char URL[64] = "tmp";
+   GumboOutput* output = gumbo_parse_with_options(&kGumboDefaultOptions, target->current_node->source_code,
+                         strnlen(target->current_node->source_code, DEF_SIZE_SOURCE_CODE));
 
-   addPage(target, URL);
+   //const char* title = find_title(output->root);
+   //printf("%s\n", title);
+   //gumbo_destroy_output(&kGumboDefaultOptions, output);
+   //free(input);
+
+   /* TODO Library which can search source for URLs.. */
+   printf("findURLs == %s\n", findURLs(target, output->root));
 }
 
 /* Interface for req to page struct */
@@ -117,17 +145,6 @@ int populatePage(struct evhttp_request *req, Target *target)
       printf("error: %u %s\n", req->response_code, req->response_code_line);
    } else {
       evbuffer_copyout(req->input_buffer, target->current_node->source_code, datalen);
-      //while ((line = evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)))
-      //{
-         //evbuffer_add(target->current_node->source_code, line, datalen);
-         //evbuffer_add(target->current_node->source_code, "\n", 1);
-         //free(line);
-      //}
-
-      //printf("success: %u %s\n", req->response_code, req->response_code_line);
-      //printf("source? %s\n", evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)); 
-      //printf("source? %s\n", evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)); 
-      //printf("source? %s\n", evbuffer_readln(req->input_buffer, &datalen, EVBUFFER_EOL_CRLF)); 
       printf("source? %s\n", target->current_node->source_code);
    }
 }
@@ -219,17 +236,9 @@ int crawl(Target *target) /* Parameters struct at some point? */
  *
  */
 
-int bootPages(Target *target)
+int addPage(Target *target, char url[DEF_SIZE_URL])
 {
-   int i = 0; // TMP
    Page *prev_node_tmp;
-
-   //printf("argDomain in bootPages == %s\n",argDomain);
-
-   /* Page URL */
-   strncpy(target->current_node->url,"/",DEF_SIZE_URL);
-
-   //printf("target->current_node->url in bootPages == %s\n",target->current_node->url);
 
    /* First item in the list */
    target->current_node->prev_node = NULL;
@@ -244,12 +253,28 @@ int bootPages(Target *target)
    /* Set current node's previous node to tmp node position */
    target->current_node->prev_node = prev_node_tmp;
 
-   //strncat(argDomain,"/robots.txt", DEF_SIZE_URL);
-   strncpy(target->current_node->url,"/robots.txt", DEF_SIZE_URL);
+   strncpy(target->current_node->url, url, DEF_SIZE_URL);
+
+   return 0;
+}
+
+int bootPages(Target *target)
+{
+   //printf("argDomain in bootPages == %s\n",argDomain);
+
+   /* Page URL */
+   strncpy(target->current_node->url,"/",DEF_SIZE_URL);
+
+   //printf("target->current_node->url in bootPages == %s\n",target->current_node->url);
+
+   addPage(target,"/robots.txt");
+   addPage(target,"/robots1.txt");
+   addPage(target,"/robots2.txt");
+   addPage(target,"/robots3.txt");
 
    /* Move back to the beginning */
-   target->current_node = target->current_node->prev_node;
-   printf("bootPages target->current_node->next_node == %x\n", target->current_node->next_node);
+   target->current_node = target->first_node;
+   printf("addPage target->current_node->next_node == %x\n", target->current_node->next_node);
 
 /*   // Main page structure
    typedef struct {
