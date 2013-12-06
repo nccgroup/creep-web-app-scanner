@@ -31,6 +31,30 @@ struct in_addr **addr;
 char argDomain[2048];
 char argIP[16];
 char argPort[6];
+int argDebug = 0;
+
+/*
+ *
+ *
+ * DEBUG FUNCTIONS
+ *
+ *
+ */
+
+int debugPrintf(char msg[DEF_SIZE_DEBUG_MESSAGE], ...)
+{
+   if (argDebug == 1)
+   {
+      va_list args;
+      va_start(args, msg);
+
+      vprintf(msg, args);
+
+      va_end(args);
+   }
+
+   return 0;
+}
 
 /*
  *
@@ -98,20 +122,22 @@ const char *findURLs(Target *target, GumboNode *root)
       return;
    }
 
-   GumboAttribute* href;
+   GumboAttribute* attr;
    if (root->v.element.tag == GUMBO_TAG_A &&
-      (href = gumbo_get_attribute(&root->v.element.attributes, "href"))) {
-      printf("a href == %s\n", href->value);
+      (attr = gumbo_get_attribute(&root->v.element.attributes, "href"))) {
+      debugPrintf("a href == %s\n", attr->value);
+      addPage(target, (char *) attr->value);
    }
 
    if (root->v.element.tag == GUMBO_TAG_SCRIPT &&
-      (href = gumbo_get_attribute(&root->v.element.attributes, "src"))) {
-      printf("script src == %s\n", href->value);
+      (attr = gumbo_get_attribute(&root->v.element.attributes, "src"))) {
+      debugPrintf("script src == %s\n", attr->value);
+      addPage(target, (char *) attr->value);
    }
 
    GumboVector* children = &root->v.element.children;
    for (0; i < children->length; ++i) {
-      findURLs(target, children->data[i]);
+      findURLs(target, children->data[i]); /* Recursive... */
    }
 }
 
@@ -126,7 +152,7 @@ int searchPageForURLs(Target *target)
    //free(input);
 
    /* TODO Library which can search source for URLs.. */
-   printf("findURLs == %s\n", findURLs(target, output->root));
+   findURLs(target, output->root);
 }
 
 /* Interface for req to page struct */
@@ -136,16 +162,16 @@ int populatePage(struct evhttp_request *req, Target *target)
    target->current_node->source_code = malloc(DEF_SIZE_SOURCE_CODE); /* TODO check */
    char *line = malloc(DEF_SIZE_SOURCE_CODE_LINE); /* TODO check */
 
-   printf("in reqhandler. state == %s\n", (char *) target);
+   debugPrintf("in reqhandler. state == %s\n", (char *) target);
    if (req == NULL) {
-      printf("timed out!\n");
+      debugPrintf("timed out!\n");
    } else if (req->response_code == 0) {
-      printf("connection refused!\n");
+      debugPrintf("connection refused!\n");
    } else if (req->response_code != 200) {
-      printf("error: %u %s\n", req->response_code, req->response_code_line);
+      debugPrintf("error: %u %s\n", req->response_code, req->response_code_line);
    } else {
       evbuffer_copyout(req->input_buffer, target->current_node->source_code, datalen);
-      printf("source? %s\n", target->current_node->source_code);
+      debugPrintf("source? %s\n", target->current_node->source_code);
    }
 }
 
@@ -182,13 +208,10 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
 
 int crawl(Target *target) /* Parameters struct at some point? */
 {
-   /* Be careful about including test IPs here.. */
-   //const char *addr = "127.0.0.1";
-
-   printf("target->ip = %s\n", target->ip);
-   printf("target->domain = %s\n", target->domain);
-   printf("target->current_node->url = %s\n", target->current_node->url);
-   printf("crawl while loop target->current_node->next_node == %x\n", target->current_node->next_node);
+   debugPrintf("target->ip = %s\n", target->ip);
+   debugPrintf("target->domain = %s\n", target->domain);
+   debugPrintf("target->current_node->url = %s\n", target->current_node->url);
+   debugPrintf("crawl while loop target->current_node->next_node == %x\n", target->current_node->next_node);
 
    const char *addr = target->ip;
    unsigned int port = 80;
@@ -197,7 +220,7 @@ int crawl(Target *target) /* Parameters struct at some point? */
    struct evhttp_request *req, *req2;
    Page *target_next_node;
 
-   printf("initializing libevent subsystem..\n");
+   debugPrintf("initializing libevent subsystem..\n");
    event_init();
 
    conn = evhttp_connection_new(addr, port);
@@ -211,8 +234,6 @@ int crawl(Target *target) /* Parameters struct at some point? */
    */
 
    do {
-      //pagePtr = page[i];
-      // reqhandler will popluate pages
       /* Need this because last element will not be crawled otherwise.. */
       target_next_node = target->current_node->next_node;
       req = evhttp_request_new(reqhandler, target);
@@ -222,11 +243,10 @@ int crawl(Target *target) /* Parameters struct at some point? */
       event_dispatch();
    } while(target_next_node != NULL);
 
-   printf("starting event loop..\n");
+   debugPrintf("starting event loop..\n");
 
    return 0;
 }
-
 
 /*
  *
@@ -236,45 +256,99 @@ int crawl(Target *target) /* Parameters struct at some point? */
  *
  */
 
+int checkURLUnique(Target *target, char url[DEF_SIZE_URL])
+{
+   Page *old_current_node = target->current_node;
+
+   /* While not at the end of the list */
+   while(target->current_node->next_node != NULL)
+   {
+      if (strncmp(target->current_node->url,url,DEF_SIZE_URL) == 0)
+      {
+         /* Return to the node we were on */
+         target->current_node = old_current_node;
+
+         debugPrintf("Not adding dup to list.. %s %s\n", target->current_node->url, url);
+
+         /* URL found, ditch */
+         return 1;
+      }
+
+      /* Next node */
+      target->current_node = target->current_node->next_node;
+   }
+
+   /* Return to the "old current" node */
+   target->current_node = old_current_node;
+
+   return 0;
+}
+
+/* Add new node and copy URL to new node and then return to current node */
 int addPage(Target *target, char url[DEF_SIZE_URL])
 {
-   Page *prev_node_tmp;
+   Page *old_current_node;
 
-   /* First item in the list */
-   target->current_node->prev_node = NULL;
+   if (checkURLUnique(target, url))
+   {
+      return 1;
+   }
+
+   /* Store current node position */
+   old_current_node = target->current_node;
+
+   /* Get to the end of the list */
+   target->current_node = target->last_node;
+
    /* Last item in the list */
    target->current_node->next_node = malloc(sizeof(Page)); /* TODO check */
-   /* Store current node position */
-   prev_node_tmp = target->current_node;
    /* Move on to next node */
    target->current_node = target->current_node->next_node;
    /* Set next next node to nothing */
    target->current_node->next_node = NULL;
    /* Set current node's previous node to tmp node position */
-   target->current_node->prev_node = prev_node_tmp;
-
+   target->current_node->prev_node = old_current_node;
+   /* Copy url to new node */
    strncpy(target->current_node->url, url, DEF_SIZE_URL);
+   /* Set the last node */
+   target->last_node = target->current_node;
+   /* Set current node to old_current_node */
+   target->current_node = target->current_node->prev_node;
 
    return 0;
 }
 
 int bootPages(Target *target)
 {
-   //printf("argDomain in bootPages == %s\n",argDomain);
+   /* First item in the list */
+   target->current_node->prev_node = NULL;
+
+   /* Set last node to current node */
+   target->last_node = target->current_node;
 
    /* Page URL */
    strncpy(target->current_node->url,"/",DEF_SIZE_URL);
 
-   //printf("target->current_node->url in bootPages == %s\n",target->current_node->url);
+   debugPrintf("target->current_node->url in bootPages == %s\n",target->current_node->url);
 
    addPage(target,"/robots.txt");
+   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
+   /* Set the first node */
+   //target->first_node = target->current_node;
    addPage(target,"/robots1.txt");
+   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
+   /* Set the first node */
    addPage(target,"/robots2.txt");
+   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
+   /* Set the first node */
    addPage(target,"/robots3.txt");
+   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
+   /* Set the first node */
 
    /* Move back to the beginning */
    target->current_node = target->first_node;
-   printf("addPage target->current_node->next_node == %x\n", target->current_node->next_node);
+   debugPrintf("addPage target->current_node->next_node == %x\n", target->current_node->next_node);
+   debugPrintf("addPage target->current_node->url == %s\n", target->current_node->url);
 
 /*   // Main page structure
    typedef struct {
@@ -286,10 +360,6 @@ int bootPages(Target *target)
       Page *prev_node;
       Page *next_node;
    } Page;*/
-
-   /* Check funcs and fix bad var name. cmd_arg_url on second line includes /robots.txt */
-   //strncat(argDomain,"/robots.txt", DEF_SIZE_URL);
-   //strncpy(target->current_node.url, argDomain, DEF_SIZE_URL);
 }
 
 int assignArgs(int argc, char **argv)
@@ -305,6 +375,7 @@ int assignArgs(int argc, char **argv)
       {
          /* These options set a flag. */
          {"verbose", no_argument,       &verbose_flag, 1},
+         {"debug",   no_argument,       &argDebug,     1},
          {"brief",   no_argument,       &verbose_flag, 0},
          /* These options don't set a flag.
             We distinguish them by their indices. */
@@ -332,14 +403,14 @@ int assignArgs(int argc, char **argv)
             if (long_options[option_index].flag != 0)
                break;
 
-            printf ("option %s", long_options[option_index].name);
+            debugPrintf ("option %s", long_options[option_index].name);
             if (optarg)
-               printf (" with arg %s", optarg);
-            printf ("\n");
+               debugPrintf (" with arg %s", optarg);
+            debugPrintf ("\n");
             break;
 
          case 'd':
-            printf ("option -d with value `%s'\n", optarg);
+            debugPrintf ("option -d with value `%s'\n", optarg);
             strncpy(argDomain, optarg, DEF_SIZE_DOMAIN);
             break;
 
@@ -348,17 +419,17 @@ int assignArgs(int argc, char **argv)
             break;
 
          case 'i':
-            printf ("option -i with value `%s'\n", optarg);
+            debugPrintf ("option -i with value `%s'\n", optarg);
             strncpy(argIP, optarg, 16);
             break;
 
          case 'p':
-            printf ("option -p with value `%s'\n", optarg);
+            debugPrintf ("option -p with value `%s'\n", optarg);
             strncpy(argPort, optarg, 6);
             break;
 
          case 'f':
-            printf ("option -f with value `%s'\n", optarg);
+            debugPrintf ("option -f with value `%s'\n", optarg);
             break;
 
          case '?':
@@ -379,9 +450,9 @@ int assignArgs(int argc, char **argv)
    /* Print any remaining command line arguments (not options). */
    if (optind < argc)
    {
-      printf ("non-option ARGV-elements: ");
+      debugPrintf ("non-option ARGV-elements: ");
       while (optind < argc)
-         printf ("%s ", argv[optind++]);
+         debugPrintf ("%s ", argv[optind++]);
       putchar ('\n');
    }
 

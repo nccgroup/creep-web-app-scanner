@@ -55,6 +55,7 @@ struct Target {
    char domain[DEF_SIZE_DOMAIN];
    struct Page *current_node;
    struct Page *first_node;
+   struct Page *last_node;
 };
 
 // Error functions
