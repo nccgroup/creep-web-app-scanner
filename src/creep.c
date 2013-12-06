@@ -151,7 +151,6 @@ int searchPageForURLs(Target *target)
    //gumbo_destroy_output(&kGumboDefaultOptions, output);
    //free(input);
 
-   /* TODO Library which can search source for URLs.. */
    findURLs(target, output->root);
 }
 
