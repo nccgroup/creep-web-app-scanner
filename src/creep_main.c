@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     - Populate files
     */
 
-   // Double linked list 
+   /* Double linked list */
    Target target;
    target.first_node = malloc(sizeof(Page)); /* TODO check */
    target.current_node = target.first_node;

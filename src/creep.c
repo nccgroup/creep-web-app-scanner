@@ -5,6 +5,7 @@
 
 #include <arpa/inet.h>
 #include <assert.h>
+#include <bsd/string.h>
 #include <errno.h>
 #include <event.h>
 #include <evhttp.h>
@@ -32,6 +33,7 @@ char argDomain[2048];
 char argIP[16];
 char argPort[6];
 int argDebug = 0;
+char path[DEF_SIZE_URL];
 
 /*
  *
@@ -161,16 +163,16 @@ int populatePage(struct evhttp_request *req, Target *target)
    target->current_node->source_code = malloc(DEF_SIZE_SOURCE_CODE); /* TODO check */
    char *line = malloc(DEF_SIZE_SOURCE_CODE_LINE); /* TODO check */
 
-   debugPrintf("in reqhandler. state == %s\n", (char *) target);
+   //debugPrintf("in reqhandler. state == %s\n", (char *) target);
    if (req == NULL) {
-      debugPrintf("timed out!\n");
+      //debugPrintf("timed out!\n");
    } else if (req->response_code == 0) {
-      debugPrintf("connection refused!\n");
+      //debugPrintf("connection refused!\n");
    } else if (req->response_code != 200) {
-      debugPrintf("error: %u %s\n", req->response_code, req->response_code_line);
+      //debugPrintf("error: %u %s\n", req->response_code, req->response_code_line);
    } else {
       evbuffer_copyout(req->input_buffer, target->current_node->source_code, datalen);
-      debugPrintf("source? %s\n", target->current_node->source_code);
+      //debugPrintf("source? %s\n", target->current_node->source_code);
    }
 }
 
@@ -260,14 +262,16 @@ int checkURLUnique(Target *target, char url[DEF_SIZE_URL])
    Page *old_current_node = target->current_node;
 
    /* While not at the end of the list */
-   while(target->current_node->next_node != NULL)
+   //while(target->current_node->next_node != NULL)
+   while(target->current_node != NULL)
    {
-      if (strncmp(target->current_node->url,url,DEF_SIZE_URL) == 0)
+      if (strcmp(url,target->current_node->url) == 0)
       {
+         printf("checkURLUnique strcmp(url,target->current_node->url) %d\n",strcmp(url,target->current_node->url));
+
+         debugPrintf("checkURLUnique Not adding %s because %s ### found in ### %s\n",url,url,target->current_node->url);
          /* Return to the node we were on */
          target->current_node = old_current_node;
-
-         debugPrintf("Not adding dup to list.. %s %s\n", target->current_node->url, url);
 
          /* URL found, ditch */
          return 1;
@@ -283,12 +287,74 @@ int checkURLUnique(Target *target, char url[DEF_SIZE_URL])
    return 0;
 }
 
+/* Will make URL relative if it is not */
+char *makeURLRelative(Target *target, char url[DEF_SIZE_URL])
+{
+   /* TODO Review DEF_SIZE_URL name, it's actually referring
+           to the path, not the full URL */
+
+   /* printf("makeURLRelative url == %s\n", url);
+   printf("makeURLRelative strnstr / working == %d\n", strnstr(url,"/",DEF_SIZE_URL) - url);
+   printf("makeURLRelative strnstr http working == %d\n", strnstr(url,"http",DEF_SIZE_URL) - url);
+   printf("checkURLRelative target == %s\n", url);
+   printf("checkURLRelative strnstr == %s\n", strnstr(url,"http",DEF_SIZE_URL));
+   printf("checkURLRelative strnstr str offset == %d\n",strnstr(url,"http",DEF_SIZE_URL) - url); */
+
+   /* Starts with http */
+   if ((strnstr(url,"http",DEF_SIZE_URL) - url) == 0)
+   {
+      /* Pull path, 3rd /
+         + 8 to account for https:// */
+      strncpy(path,strnstr((url + 8),"/",DEF_SIZE_URL),DEF_SIZE_URL);
+      debugPrintf("makeURLRelative path == %s\n", path);
+      //strncpy(target->current_node->url,path,DEF_SIZE_URL);
+   /* Does not start with / ? Then add */
+   } else if ((strnstr(url,"/",DEF_SIZE_URL) - url) != 0)
+   {
+      //strncpy(target->current_node->url,"/",DEF_SIZE_URL);
+      //strncat(target->current_node->url,path,DEF_SIZE_URL);
+      strncpy(path,"/",DEF_SIZE_URL);
+      strncat(path,url,DEF_SIZE_URL);
+   /* URL is relative, move on */
+   } else {
+      //strncpy(target->current_node->url,url,DEF_SIZE_URL);
+      strncpy(path,url,DEF_SIZE_URL);
+   }
+
+   debugPrintf("makeURLRelative target->current_node->url == %s\n", target->current_node->url);
+
+   return path;
+}
+
+/* Remove # */
+char *cleanURL(char url[DEF_SIZE_URL])
+{
+   char *hashLocation;
+
+   printf("cleanURL url before == %s\n",url);
+
+   hashLocation = strnstr(url,"#",DEF_SIZE_URL);
+
+   if (hashLocation == 0)
+   {
+      return url;
+   }
+
+   printf("cleanURL hashLocation == %s\n",hashLocation);
+
+   *hashLocation = '\0';
+
+   printf("cleanURL url after == %s\n",url);
+
+   return url;
+}
+
 /* Add new node and copy URL to new node and then return to current node */
 int addPage(Target *target, char url[DEF_SIZE_URL])
 {
    Page *old_current_node;
 
-   if (checkURLUnique(target, url))
+   if (checkURLUnique(target, makeURLRelative(target,url)))
    {
       return 1;
    }
@@ -308,7 +374,9 @@ int addPage(Target *target, char url[DEF_SIZE_URL])
    /* Set current node's previous node to tmp node position */
    target->current_node->prev_node = old_current_node;
    /* Copy url to new node */
-   strncpy(target->current_node->url, url, DEF_SIZE_URL);
+                                      /* Fix absolute URLs | Remove # */
+   strncpy(target->current_node->url, makeURLRelative(target,cleanURL(url)), DEF_SIZE_URL);
+   printf("addPage Added target->current_node->url == %s\n",target->current_node->url);
    /* Set the last node */
    target->last_node = target->current_node;
    /* Set current node to old_current_node */
@@ -332,17 +400,6 @@ int bootPages(Target *target)
 
    addPage(target,"/robots.txt");
    debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
-   /* Set the first node */
-   //target->first_node = target->current_node;
-   addPage(target,"/robots1.txt");
-   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
-   /* Set the first node */
-   addPage(target,"/robots2.txt");
-   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
-   /* Set the first node */
-   addPage(target,"/robots3.txt");
-   debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
-   /* Set the first node */
 
    /* Move back to the beginning */
    target->current_node = target->first_node;
