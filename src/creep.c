@@ -261,6 +261,9 @@ int checkURLUnique(Target *target, char url[DEF_SIZE_URL])
 {
    Page *old_current_node = target->current_node;
 
+   /* Let's go back to the beginning */
+   target->current_node = target->first_node;
+
    /* While not at the end of the list */
    //while(target->current_node->next_node != NULL)
    while(target->current_node != NULL)
@@ -354,10 +357,12 @@ int addPage(Target *target, char url[DEF_SIZE_URL])
 {
    Page *old_current_node;
 
-   if (checkURLUnique(target, makeURLRelative(target,url)))
+   if (checkURLUnique(target, makeURLRelative(target,cleanURL(url))))
    {
       return 1;
    }
+
+   printf("addPage checkURLUnique returned 0 for url %s\n\n", url);
 
    /* Store current node position */
    old_current_node = target->current_node;
