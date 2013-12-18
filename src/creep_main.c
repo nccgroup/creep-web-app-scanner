@@ -39,6 +39,7 @@ int main(int argc, char *argv[])
    processArgs(&target);
    bootPages(&target);
    crawl(&target);
+   showCrawledURLs(&target);
 
    return 0;
 }

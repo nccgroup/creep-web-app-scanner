@@ -184,8 +184,43 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
       - Check all pages have been crawled, search pages?
    */
 
+   /* NOTE: No reentrant allowed (doHTTPRequest) */
+
+   struct evhttp_uri *new_uri = NULL;
+   const char *new_location = NULL;
+   char cleanURLStr[DEF_SIZE_URL], relativeURLStr[DEF_SIZE_URL], newLocationStr[DEF_SIZE_URL];
+
    /* Typecast */
    Target *target = (Target *) vTarget;
+
+   /* Sort redirects */
+   switch(req->response_code)
+   {
+      case HTTP_OK:
+      /* 
+      * Response is received. No futher handling is required.
+      * Finish
+      */
+      //event_base_loopexit(ctx->base, 0);
+      break;
+
+      case HTTP_MOVEPERM:
+      case HTTP_MOVETEMP:
+      new_location = evhttp_find_header(req->input_headers, "Location");
+      strncpy(newLocationStr,new_location,DEF_SIZE_URL);
+
+      strncpy(cleanURLStr,cleanURL(newLocationStr),DEF_SIZE_URL);
+      strncpy(relativeURLStr,makeURLRelative(target,cleanURLStr),DEF_SIZE_URL);
+      strncpy(target->current_node->url,relativeURLStr,DEF_SIZE_URL); // TODO check DEF
+      if (!new_location)
+         return;
+
+      //strncpy(target->current_node->url,evhttp_uri_parse(new_location),DEF_SIZE_URL); // TODO check DEF
+      if (!target->current_node->url)
+         return;
+
+      return;
+   }
 
    /*
     *
@@ -207,26 +242,36 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
    event_loopexit(NULL);
 }
 
+int doHTTPRequest(Target *target)
+{
+   /* TODO specify port as argument */
+   unsigned int port = 80;
+   int i = 0, allPagesCrawled = 0;
+   struct evhttp_request *req, *req2;
+
+   req = evhttp_request_new(reqhandler, target);
+   evhttp_add_header(req->output_headers, "Host", target->domain);
+   evhttp_add_header(req->output_headers, "Content-Length", "0");
+   evhttp_make_request(target->libevent_conn, req, EVHTTP_REQ_GET, target->current_node->url);
+   event_dispatch();
+
+   return 0;
+}
+
 int crawl(Target *target) /* Parameters struct at some point? */
 {
+   Page *target_next_node;
+
+   unsigned int port = 80;
+   const char *addr = target->ip;
+
    debugPrintf("target->ip = %s\n", target->ip);
    debugPrintf("target->domain = %s\n", target->domain);
    debugPrintf("target->current_node->url = %s\n", target->current_node->url);
    debugPrintf("crawl while loop target->current_node->next_node == %x\n", target->current_node->next_node);
 
-   const char *addr = target->ip;
-   unsigned int port = 80;
-   int i = 0, allPagesCrawled = 0;
-   struct evhttp_connection *conn;
-   struct evhttp_request *req, *req2;
-   Page *target_next_node;
-
    debugPrintf("initializing libevent subsystem..\n");
    event_init();
-
-   conn = evhttp_connection_new(addr, port);
-   /* TODO timeout spceifier as cmd arg */
-   evhttp_connection_set_timeout(conn, 5);
 
    /*
       - Have some pages to crawl, need to populate pages[x]
@@ -234,15 +279,16 @@ int crawl(Target *target) /* Parameters struct at some point? */
       - Check all pages have been crawled, search pages?
    */
 
+   /* TODO Free conns? */
+   target->libevent_conn = evhttp_connection_new(addr, port);
+   /* TODO timeout spceifier as cmd arg */
+   evhttp_connection_set_timeout(target->libevent_conn, 5);
+
    do {
       /* Need this because last element will not be crawled otherwise.. */
       target_next_node = target->current_node->next_node;
-      req = evhttp_request_new(reqhandler, target);
-      evhttp_add_header(req->output_headers, "Host", target->domain);
-      evhttp_add_header(req->output_headers, "Content-Length", "0");
-      evhttp_make_request(conn, req, EVHTTP_REQ_GET, target->current_node->url);
-      event_dispatch();
-   } while(target_next_node != NULL);
+      doHTTPRequest(target);
+   } while(target->current_node != NULL);
 
    debugPrintf("starting event loop..\n");
 
@@ -270,7 +316,7 @@ int checkURLUnique(Target *target, char url[DEF_SIZE_URL])
    {
       if (strcmp(url,target->current_node->url) == 0)
       {
-         printf("checkURLUnique strcmp(url,target->current_node->url) %d\n",strcmp(url,target->current_node->url));
+         debugPrintf("checkURLUnique strcmp(url,target->current_node->url) %d\n",strcmp(url,target->current_node->url));
 
          debugPrintf("checkURLUnique Not adding %s because %s ### found in ### %s\n",url,url,target->current_node->url);
          /* Return to the node we were on */
@@ -291,7 +337,7 @@ int checkURLUnique(Target *target, char url[DEF_SIZE_URL])
 }
 
 /* Will make URL relative if it is not */
-char *makeURLRelative(Target *target, char url[DEF_SIZE_URL])
+char *makeURLRelative(Target *target, char *url)
 {
    /* TODO Review DEF_SIZE_URL name, it's actually referring
            to the path, not the full URL */
@@ -324,17 +370,17 @@ char *makeURLRelative(Target *target, char url[DEF_SIZE_URL])
       strncpy(path,url,DEF_SIZE_URL);
    }
 
-   debugPrintf("makeURLRelative target->current_node->url == %s\n", target->current_node->url);
+   //debugPrintf("makeURLRelative target->current_node->url == %s\n", target->current_node->url);
 
    return path;
 }
 
 /* Remove # */
-char *cleanURL(char url[DEF_SIZE_URL])
+char *cleanURL(char *url)
 {
    char *hashLocation;
 
-   printf("cleanURL url before == %s\n",url);
+   debugPrintf("cleanURL url before == %s\n",url);
 
    hashLocation = strnstr(url,"#",DEF_SIZE_URL);
 
@@ -343,17 +389,17 @@ char *cleanURL(char url[DEF_SIZE_URL])
       return url;
    }
 
-   printf("cleanURL hashLocation == %s\n",hashLocation);
+   debugPrintf("cleanURL hashLocation == %s\n",hashLocation);
 
    *hashLocation = '\0';
 
-   printf("cleanURL url after == %s\n",url);
+   debugPrintf("cleanURL url after == %s\n",url);
 
    return url;
 }
 
 /* Add new node and copy URL to new node and then return to current node */
-int addPage(Target *target, char url[DEF_SIZE_URL])
+int addPage(Target *target, char *url)
 {
    Page *old_current_node;
 
@@ -362,7 +408,7 @@ int addPage(Target *target, char url[DEF_SIZE_URL])
       return 1;
    }
 
-   printf("addPage checkURLUnique returned 0 for url %s\n\n", url);
+   debugPrintf("addPage checkURLUnique returned 0 for url %s\n\n", url);
 
    /* Store current node position */
    old_current_node = target->current_node;
@@ -381,7 +427,7 @@ int addPage(Target *target, char url[DEF_SIZE_URL])
    /* Copy url to new node */
                                       /* Fix absolute URLs | Remove # */
    strncpy(target->current_node->url, makeURLRelative(target,cleanURL(url)), DEF_SIZE_URL);
-   printf("addPage Added target->current_node->url == %s\n",target->current_node->url);
+   debugPrintf("addPage Added target->current_node->url == %s\n",target->current_node->url);
    /* Set the last node */
    target->last_node = target->current_node;
    /* Set current node to old_current_node */
@@ -530,6 +576,26 @@ int validateIP(char IP[16])
 
 int validateDomain(char domain[DEF_SIZE_DOMAIN])
 {
+
+   return 0;
+}
+
+int showCrawledURLs(Target *target)
+{
+   Page *target_next_node;
+
+   target->current_node = target->first_node;
+
+   do {
+      printf("URL added: %s\n",target->current_node->url);
+
+      /* Need this because last element will not be crawled otherwise.. */
+      target->current_node = target->current_node->next_node;
+
+      target_next_node = target->current_node->next_node;
+   } while(target->current_node != NULL);
+
+   debugPrintf("Last node URL: %s\n",target->last_node->url);
 
    return 0;
 }

@@ -56,6 +56,7 @@ struct Page {
 struct Target {
    char ip[16]; /* v4 only, get over it */
    char domain[DEF_SIZE_DOMAIN];
+   struct evhttp_connection *libevent_conn;
    struct Page *current_node;
    struct Page *first_node;
    struct Page *last_node;
@@ -72,3 +73,5 @@ int searchPageForURLs(Target *target);
 int populatePage(struct evhttp_request *req, Target *target);
 void reqhandler(struct evhttp_request *req, void *target);
 int crawl(Target *target); /* Parameters struct at some point? */
+char *makeURLRelative(Target *target, char *url);
+char *cleanURL(char *url);
