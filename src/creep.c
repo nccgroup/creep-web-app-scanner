@@ -32,7 +32,7 @@ struct in_addr **addr;
 char argDomain[2048];
 char argIP[16];
 char argPort[6];
-int argDebug = 0;
+int argDebug = 0, argDomainSet = 0, argCrawlSubs = 0;
 char path[DEF_SIZE_URL];
 
 /*
@@ -117,6 +117,49 @@ uint8_t exit_error(Error error)
  *
  */
 
+/* Check domain in absolute URLs. Will add subdomain support at some point TODO */
+/* Return 0 if URL is relative or absolute and in scope */
+int checkDomain(char *url)
+{
+   char *domain = NULL;
+/* checkDomain domain == /wordpress/
+   checkDomain domain == http://static.bbci.co.uk/h4weather/0.81.3/script/h4weather.js
+   checkDomain domain == http://pastefu.org/wordpress/wp-includes/js/jquery/jquery.js?ver=1.10.2
+   checkDomain domain == http://pastefu.org/wordpress/wp-includes/js/jquery/jquery-migrate.min.js?ver=1.2.1 */
+   debugPrintf("checkDomain url == %s\n", url);
+
+   /*
+      * start with http? - check domain to second /
+      * start with /? - relative, OK
+      * start with something else? Probably relative, OK?
+   */
+
+   debugPrintf("checkDomain url and \"http://\" compare == %d\n", strncmp(url,"http://",7));
+
+   /* Uppercase support? TODO */
+   if (strncmp(url,"http://",7) == 0)
+   {
+      domain = &url[7];
+   } else if (strncmp(url,"https://",8) == 0)
+   {
+      domain = &url[8];
+   } else {
+      debugPrintf("checkDomain url == %s\n", url);
+      debugPrintf("checkDomain domain == %s\n", domain);
+      return 0;
+   }
+
+   debugPrintf("checkDomain domain == %s\n", domain);
+   debugPrintf("checkDomain argDomain == %s\n", argDomain);
+   debugPrintf("checkDomain argDomain and domain compare == %d\n",strncmp(argDomain,domain,strnlen(argDomain,DEF_SIZE_DOMAIN)));
+   if (strncmp(argDomain,domain,strnlen(argDomain,DEF_SIZE_DOMAIN)) == 0)
+   {
+      return 0;
+   }
+
+   return 1;
+}
+
 const char *findURLs(Target *target, GumboNode *root)
 {
    int i;
@@ -128,13 +171,23 @@ const char *findURLs(Target *target, GumboNode *root)
    if (root->v.element.tag == GUMBO_TAG_A &&
       (attr = gumbo_get_attribute(&root->v.element.attributes, "href"))) {
       debugPrintf("a href == %s\n", attr->value);
-      addPage(target, (char *) attr->value);
+      /* Only care for URLs in scope */
+      if (checkDomain((char *) attr->value) == 0)
+      {
+         debugPrintf("findURLs calling addPage\n");
+         addPage(target,(char *) attr->value);
+      }
    }
 
    if (root->v.element.tag == GUMBO_TAG_SCRIPT &&
       (attr = gumbo_get_attribute(&root->v.element.attributes, "src"))) {
       debugPrintf("script src == %s\n", attr->value);
-      addPage(target, (char *) attr->value);
+      /* Only care for URLs in scope */
+      if (checkDomain((char *) attr->value) == 0)
+      {
+         debugPrintf("findURLs calling addPage\n");
+         addPage(target,(char *) attr->value);
+      }
    }
 
    GumboVector* children = &root->v.element.children;
@@ -176,6 +229,11 @@ int populatePage(struct evhttp_request *req, Target *target)
    }
 }
 
+int processRobotsTxt(Target *target)
+{
+   return 0;
+}
+
 //void reqhandler(struct evhttp_request *req, Target *target)
 void reqhandler(struct evhttp_request *req, void *vTarget)
 {
@@ -192,6 +250,12 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
 
    /* Typecast */
    Target *target = (Target *) vTarget;
+
+   /* Deal with robots.txt */
+   if (!strncmp(target->current_node->url,"/robots.txt",DEF_SIZE_URL))
+   {
+      processRobotsTxt(target);
+   }
 
    /* Sort redirects */
    switch(req->response_code)
@@ -403,6 +467,8 @@ int addPage(Target *target, char *url)
 {
    Page *old_current_node;
 
+   debugPrintf("addPage url == %s\n",url);
+
    if (checkURLUnique(target, makeURLRelative(target,cleanURL(url))))
    {
       return 1;
@@ -426,7 +492,7 @@ int addPage(Target *target, char *url)
    target->current_node->prev_node = old_current_node;
    /* Copy url to new node */
                                       /* Fix absolute URLs | Remove # */
-   strncpy(target->current_node->url, makeURLRelative(target,cleanURL(url)), DEF_SIZE_URL);
+   strncpy(target->current_node->url, makeURLRelative(target,cleanURL(url)),DEF_SIZE_URL);
    debugPrintf("addPage Added target->current_node->url == %s\n",target->current_node->url);
    /* Set the last node */
    target->last_node = target->current_node;
@@ -469,11 +535,18 @@ int bootPages(Target *target)
    } Page;*/
 }
 
+int showHelp()
+{
+   printf("Help is (not) here\n");
+
+   exit(1);
+}
+
 int assignArgs(int argc, char **argv)
 {
    /* Flag set by '--verbose'. */
-   static int verbose_flag;
-     
+   static int argVerboseFlag;
+
    int c;
      
    while (1)
@@ -481,9 +554,10 @@ int assignArgs(int argc, char **argv)
       static struct option long_options[] =
       {
          /* These options set a flag. */
-         {"verbose", no_argument,       &verbose_flag, 1},
-         {"debug",   no_argument,       &argDebug,     1},
-         {"brief",   no_argument,       &verbose_flag, 0},
+         {"verbose",     no_argument,       &argVerboseFlag, 1},
+         {"debug",       no_argument,       &argDebug,       1},
+         //{"brief",       no_argument,       &argVerboseFlag,    0},
+         {"subdomain",   no_argument,       &argCrawlSubs,   1},
          /* These options don't set a flag.
             We distinguish them by their indices. */
          {"append",  no_argument,       0, 'b'},
@@ -498,7 +572,16 @@ int assignArgs(int argc, char **argv)
       int option_index = 0;
      
       c = getopt_long(argc, argv, "bd:i:p:f:", long_options, &option_index);
-     
+
+      debugPrintf("assignArgs argc == %d\n", argc);
+
+      /* domain is only required argument (ip can be determined via domain) */
+      if (argc == 1)
+      {
+         /* Only binary called */
+         showHelp();
+      }
+ 
       /* Detect the end of the options. */
       if (c == -1)
          break;
@@ -510,15 +593,16 @@ int assignArgs(int argc, char **argv)
             if (long_options[option_index].flag != 0)
                break;
 
-            debugPrintf ("option %s", long_options[option_index].name);
+            debugPrintf("option %s", long_options[option_index].name);
             if (optarg)
-               debugPrintf (" with arg %s", optarg);
-            debugPrintf ("\n");
+               debugPrintf(" with arg %s", optarg);
+            debugPrintf("\n");
             break;
 
          case 'd':
-            debugPrintf ("option -d with value `%s'\n", optarg);
+            debugPrintf("option -d with value `%s'\n", optarg);
             strncpy(argDomain, optarg, DEF_SIZE_DOMAIN);
+            argDomainSet = 1;
             break;
 
          case 'b':
@@ -526,17 +610,17 @@ int assignArgs(int argc, char **argv)
             break;
 
          case 'i':
-            debugPrintf ("option -i with value `%s'\n", optarg);
+            debugPrintf("option -i with value `%s'\n", optarg);
             strncpy(argIP, optarg, 16);
             break;
 
          case 'p':
-            debugPrintf ("option -p with value `%s'\n", optarg);
+            debugPrintf("option -p with value `%s'\n", optarg);
             strncpy(argPort, optarg, 6);
             break;
 
          case 'f':
-            debugPrintf ("option -f with value `%s'\n", optarg);
+            debugPrintf("option -f with value `%s'\n", optarg);
             break;
 
          case '?':
@@ -544,14 +628,15 @@ int assignArgs(int argc, char **argv)
             break;
 
          default:
-            abort ();
+            debugPrintf("assignArgs abort to be called\n");
+            abort();
       }
    }
 
    /* Instead of reporting '--verbose'
       and '--brief' as they are encountered,
       we report the final status resulting from them. */
-   if (verbose_flag)
+   if (argVerboseFlag)
       puts ("verbose flag is set");
     
    /* Print any remaining command line arguments (not options). */
@@ -610,7 +695,13 @@ int processArgs(Target *target)
          - IP
 
       - What if the IP is specified and the domain is not valid? It should probably pass..
+      - What if the domain name and IP are not specified? Bail.
    */
+
+   if (argDomainSet == 0)
+   {
+      showHelp();
+   }
 
    if (argIP == NULL)
    {

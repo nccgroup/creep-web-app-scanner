@@ -1,0 +1,17 @@
+* Derp, HTTPS support?
+* Read robots.txt
+* Read comments
+* Return code
+* Source code
+* Brute force / dictionary files and directories
+* Read Error / Warning messages
+* Pull / determine GET requests per page
+* File paths
+* Search engine
+* Potentially interesting parameters
+* CVE version referencing
+** Rulesets
+
+--
+
+* Be wary of crawl holes
