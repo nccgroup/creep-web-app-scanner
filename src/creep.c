@@ -16,12 +16,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/queue.h>
 
 #include "/usr/local/include/gumbo.h"
 
 #include "../src/creep.h"
 #include "../src/def_error_messages.h"
 #include "../src/def_sizes.h"
+
+#define DEF_SIZE_HEADER 128
 
 /* Globals */
 Error error[DEF_SIZE_ERROR_INSTANCES];
@@ -122,10 +125,6 @@ uint8_t exit_error(Error error)
 int checkDomain(char *url)
 {
    char *domain = NULL;
-/* checkDomain domain == /wordpress/
-   checkDomain domain == http://static.bbci.co.uk/h4weather/0.81.3/script/h4weather.js
-   checkDomain domain == http://pastefu.org/wordpress/wp-includes/js/jquery/jquery.js?ver=1.10.2
-   checkDomain domain == http://pastefu.org/wordpress/wp-includes/js/jquery/jquery-migrate.min.js?ver=1.2.1 */
    debugPrintf("checkDomain url == %s\n", url);
 
    /*
@@ -214,6 +213,7 @@ int populatePage(struct evhttp_request *req, Target *target)
 {
    size_t datalen = DEF_SIZE_SOURCE_CODE; /* Max source code size */
    target->current_node->source_code = malloc(DEF_SIZE_SOURCE_CODE); /* TODO check */
+   target->current_node->headers_raw = malloc(DEF_SIZE_HEADERS); /* TODO check */
    char *line = malloc(DEF_SIZE_SOURCE_CODE_LINE); /* TODO check */
 
    //debugPrintf("in reqhandler. state == %s\n", (char *) target);
@@ -225,7 +225,8 @@ int populatePage(struct evhttp_request *req, Target *target)
       //debugPrintf("error: %u %s\n", req->response_code, req->response_code_line);
    } else {
       evbuffer_copyout(req->input_buffer, target->current_node->source_code, datalen);
-      //debugPrintf("source? %s\n", target->current_node->source_code);
+      scrapeHeaders(req,target);
+      debugPrintf("source? %s\n", target->current_node->source_code);
    }
 }
 
@@ -292,6 +293,14 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
     *
     */
    populatePage(req,target);
+
+   /*
+    *
+    * SCRAPE
+    *
+    */
+   //scrapeComments(target);
+   //scrapeMessages(target);
    
    /*
     *
@@ -460,6 +469,73 @@ char *cleanURL(char *url)
    debugPrintf("cleanURL url after == %s\n",url);
 
    return url;
+}
+
+/* Returns 1 if header is 'boring' */
+int scrapeHeadersSearch(struct evkeyval *header)
+{
+   //debugPrintf("scrapeHeadersSearch header->key == %s\n", header->key);
+
+   /* TODO Need to compare headers across requests to detect discrepencies.
+      Maybe more than one box serving site. */
+   /* Boring headers */
+   if (strncmp(header->key,"Description",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Example",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Accept",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Accept-Charset",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Accept-Encoding",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Accept-Language",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Accept-Datetime",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Authorization",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Connection",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Cookie",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Content-Length",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Content-MD5",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Content-Type",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Date",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Expect",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"From",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Host",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"If-Match",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"If-Modified-Since",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"If-None-Match",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"If-Range",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Max-Forwards",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Origin",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Pragma",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Range",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Referrer",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"User-Agent",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Via",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Description",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Example",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-Forwarded-Proto",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Front-End-Https",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-ATT-DeviceId",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-Wap-Profile",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Proxy-Connection",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Vary",DEF_SIZE_HEADER) == 0) return 1;
+
+   return 0;
+}
+
+int scrapeHeaders(struct evhttp_request *req, Target *target)
+{
+   // TODO This code works but you need to sort the req stuff out
+   struct evkeyvalq *evheaders;
+   struct evkeyval *header;
+
+   evheaders = evhttp_request_get_input_headers(req);
+
+   TAILQ_FOREACH(header, evheaders, next)
+   {
+      if (scrapeHeadersSearch(header) == 0)
+      {
+         debugPrintf("headers? %s %s\n", header->key, header->value);
+      }
+   }
+
+   return 0;
 }
 
 /* Add new node and copy URL to new node and then return to current node */

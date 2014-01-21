@@ -47,6 +47,8 @@ struct Page {
    char raw_url[DEF_SIZE_RAW_URL];
    /* TODO Check NULL byte issue str* functions should be DEF - 1? */
    char url[DEF_SIZE_URL];
+   /* Unprocessed headers */
+   struct evkeyvalq *headers_raw;
    char *source_code;
    Findings findings;
    struct Page *prev_node;
