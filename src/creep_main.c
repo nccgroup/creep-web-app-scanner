@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
    Target target;
    target.first_node = malloc(sizeof(Page)); /* TODO check */
    target.current_node = target.first_node;
+   setup_error_messages();
 
    assignArgs(argc,argv);
    processArgs(&target);

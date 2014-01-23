@@ -35,7 +35,7 @@ struct in_addr **addr;
 char argDomain[2048];
 char argIP[16];
 char argPort[6];
-int argDebug = 0, argDomainSet = 0, argCrawlSubs = 0;
+int argDebug = 0, argDomainSet = 0, argCrawlSubs = 0, argNoCrawl = 0;
 char path[DEF_SIZE_URL];
 
 /*
@@ -69,7 +69,7 @@ int debugPrintf(char msg[DEF_SIZE_DEBUG_MESSAGE], ...)
  *
  */
 
-int setup_error_messages(Error *error)
+int setup_error_messages()
 {
    /*typedef struct {
       int number;
@@ -94,22 +94,32 @@ int setup_error_messages(Error *error)
 
    //DEF_ERROR_30 "IP address supplied is not a valid v4 address"
    error[30].number = 30;
-   strcpy(error[30].message, DEF_ERROR_20);
+   strcpy(error[30].message, DEF_ERROR_30);
    error[30].log = 0x0;
 
    //DEF_ERROR_31 "Domain is not valid"
    error[31].number = 31;
-   strcpy(error[31].message, DEF_ERROR_20);
+   strcpy(error[31].message, DEF_ERROR_31);
    error[31].log = 0x0;
+
+   //DEF_ERROR_40 "Connection failed"
+   error[40].number = 40;
+   strcpy(error[40].message, DEF_ERROR_40);
+   error[40].log = 0x0;
+
+   //DEF_ERROR_50 "Could not resolve domain"
+   error[50].number = 50;
+   strcpy(error[50].message, DEF_ERROR_50);
+   error[50].log = 0x0;
 
    return 0;
 }
 
-uint8_t exit_error(Error error)
+uint8_t exit_error(int x)
 {
-   printf("Error %d: %s\n", error.number, error.message);
+   printf("Error %d: %s\n", error[x].number, error[x].message);
 
-   exit(error.number);
+   exit(error[x].number);
 }
 
 /*
@@ -216,13 +226,13 @@ int populatePage(struct evhttp_request *req, Target *target)
    target->current_node->headers_raw = malloc(DEF_SIZE_HEADERS); /* TODO check */
    char *line = malloc(DEF_SIZE_SOURCE_CODE_LINE); /* TODO check */
 
-   //debugPrintf("in reqhandler. state == %s\n", (char *) target);
+   debugPrintf("populatePage target == %s\n", (char *) target);
    if (req == NULL) {
-      //debugPrintf("timed out!\n");
+      debugPrintf("timed out!\n");
    } else if (req->response_code == 0) {
-      //debugPrintf("connection refused!\n");
+      debugPrintf("connection refused!\n");
    } else if (req->response_code != 200) {
-      //debugPrintf("error: %u %s\n", req->response_code, req->response_code_line);
+      debugPrintf("error: %u %s\n", req->response_code, req->response_code_line);
    } else {
       evbuffer_copyout(req->input_buffer, target->current_node->source_code, datalen);
       scrapeHeaders(req,target);
@@ -252,11 +262,19 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
    /* Typecast */
    Target *target = (Target *) vTarget;
 
+   if (req == NULL)
+   {
+      exit_error(40);
+   }
+
    /* Deal with robots.txt */
    if (!strncmp(target->current_node->url,"/robots.txt",DEF_SIZE_URL))
    {
       processRobotsTxt(target);
    }
+
+   debugPrintf("reqhandler req == %d\n", req);
+   debugPrintf("reqhandler req->response_code == %d\n", req->response_code);
 
    /* Sort redirects */
    switch(req->response_code)
@@ -282,7 +300,9 @@ void reqhandler(struct evhttp_request *req, void *vTarget)
 
       //strncpy(target->current_node->url,evhttp_uri_parse(new_location),DEF_SIZE_URL); // TODO check DEF
       if (!target->current_node->url)
+      {
          return;
+      }
 
       return;
    }
@@ -361,7 +381,7 @@ int crawl(Target *target) /* Parameters struct at some point? */
       /* Need this because last element will not be crawled otherwise.. */
       target_next_node = target->current_node->next_node;
       doHTTPRequest(target);
-   } while(target->current_node != NULL);
+   } while((target->current_node != NULL) && (argNoCrawl == 0));
 
    debugPrintf("starting event loop..\n");
 
@@ -474,7 +494,7 @@ char *cleanURL(char *url)
 /* Returns 1 if header is 'boring' */
 int scrapeHeadersSearch(struct evkeyval *header)
 {
-   //debugPrintf("scrapeHeadersSearch header->key == %s\n", header->key);
+   debugPrintf("scrapeHeadersSearch header->key == %s\n", header->key);
 
    /* TODO Need to compare headers across requests to detect discrepencies.
       Maybe more than one box serving site. */
@@ -515,6 +535,13 @@ int scrapeHeadersSearch(struct evkeyval *header)
    if (strncmp(header->key,"X-Wap-Profile",DEF_SIZE_HEADER) == 0) return 1;
    if (strncmp(header->key,"Proxy-Connection",DEF_SIZE_HEADER) == 0) return 1;
    if (strncmp(header->key,"Vary",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Etag",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Transfer-Encoding",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-Cache-Action",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-Cache-Hits",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-Cache-Age",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"Cache-Control",DEF_SIZE_HEADER) == 0) return 1;
+   if (strncmp(header->key,"X-LB-NoCache",DEF_SIZE_HEADER) == 0) return 1;
 
    return 0;
 }
@@ -529,9 +556,10 @@ int scrapeHeaders(struct evhttp_request *req, Target *target)
 
    TAILQ_FOREACH(header, evheaders, next)
    {
+      /* Interesting header? */
       if (scrapeHeadersSearch(header) == 0)
       {
-         debugPrintf("headers? %s %s\n", header->key, header->value);
+         debugPrintf("scrapeHeaders Interesting header? %s --- %s\n", header->key, header->value);
       }
    }
 
@@ -589,9 +617,13 @@ int bootPages(Target *target)
    /* Page URL */
    strncpy(target->current_node->url,"/",DEF_SIZE_URL);
 
-   debugPrintf("target->current_node->url in bootPages == %s\n",target->current_node->url);
+   debugPrintf("bootPages target->current_node->url == %s\n",target->current_node->url);
 
-   addPage(target,"/robots.txt");
+   if (argNoCrawl != 1)
+   {
+      addPage(target,"/robots.txt");
+   }
+
    debugPrintf("bootPages current_node url == %s\n", target->current_node->url);
 
    /* Move back to the beginning */
@@ -634,6 +666,7 @@ int assignArgs(int argc, char **argv)
          {"debug",       no_argument,       &argDebug,       1},
          //{"brief",       no_argument,       &argVerboseFlag,    0},
          {"subdomain",   no_argument,       &argCrawlSubs,   1},
+         {"no-crawl",    no_argument,       &argNoCrawl,   1},
          /* These options don't set a flag.
             We distinguish them by their indices. */
          {"append",  no_argument,       0, 'b'},
@@ -727,8 +760,42 @@ int assignArgs(int argc, char **argv)
    return 0;
 }
 
+int resolveIP(char IP[16])
+{
+   struct hostent *he;
+   struct in_addr **addr_list;
+   int i;
+      
+   if ((he = gethostbyname(argDomain)) == NULL) 
+   {
+      /* Get host information */
+      herror("gethostbyname");
+      return 1;
+   }
+
+   addr_list = (struct in_addr **) he->h_addr_list;
+   
+   for(i=0;addr_list[i]!=NULL;i++) 
+   {
+      //Return the first one;
+      strcpy(IP,inet_ntoa(*addr_list[i]));
+      return 0;
+   }
+   
+   return 1;
+}
+
 int validateIP(char IP[16])
 {
+   if (strnlen(IP,16) == 0)
+   {
+      if (resolveIP(IP))
+      {
+         /* Can't resolve? */
+         exit_error(50);
+      }
+   }
+
    struct sockaddr_in sa;
    int result = inet_pton(AF_INET, IP, &(sa.sin_addr));
 
